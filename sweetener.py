@@ -36,7 +36,6 @@ def read_sugar_df(csv_path: str) -> pd.DataFrame:
 
     sugar_df = pd.read_csv(
         csv_path,
-        usecols=list(col_dtypes.keys()),
         dtype=col_dtypes,
     )
     if not isinstance(sugar_df, pd.DataFrame):
@@ -45,7 +44,18 @@ def read_sugar_df(csv_path: str) -> pd.DataFrame:
     # parse date & time columns
     sugar_df["Date"] = pd.to_datetime(sugar_df["Date"]).apply((lambda dt: dt.date()))  # type: ignore
     sugar_df["Time"] = pd.to_datetime(sugar_df["Time"]).apply((lambda dt: dt.time()))  # type: ignore
-    return sugar_df
+    return sugar_df  # type: ignore
+
+
+def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop fully empty columns from the given DataFrame"""
+    # trim empty whitespace in string columns
+    df = df.applymap((lambda s: s.strip() if isinstance(s, str) else s))
+
+    # remove empty & nan coluns
+    df = df.replace("", np.nan).dropna(axis=1, how="all")  # type: ignore
+
+    return df
 
 
 def fit_sheet_cols(worksheet: Worksheet):
@@ -157,7 +167,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # read blood sugar data
-    sugar_df = read_sugar_df(args.csv_path)
+    sugar_df = drop_empty(read_sugar_df(args.csv_path))
 
     # filter data to only include entries from start date onwards
     if args.start_from is not None:
