@@ -1,7 +1,7 @@
-# :candy: Sweetener
-Clean up blood sugar data from MySugr App for evaluation in DDD consultations.
+# :candy: Saccharin
+Generate a human readable Excel Workbook from MySugr CSV exports.
 
 ## Features
-- Extracts only relevant columns from blood sugar data.
-- Flags Hyperglycemia and Hyperglycemia events.
-- Generates summary statistics.
+- Extracts only non-empty columns from blood sugar data.
+- Flags Hyperglycemia and Hyperglycemia events with highlighting.
+- Generates summary statistics from the blood sugar data.
