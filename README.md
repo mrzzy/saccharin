@@ -1,5 +1,5 @@
 # :candy: Saccharin
-Generate a human readable Excel Workbook from MySugr CSV exports.
+Sweeten your MySugar CSV exports into human readable Spreadsheets.
 
 ## Features
 - Extracts only non-empty columns from blood sugar data.
