@@ -5,6 +5,7 @@
 
 from typing import cast
 import numpy as np
+from openpyxl.styles.fills import PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import pandas as pd
 
@@ -13,6 +14,8 @@ from argparse import ArgumentParser
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.utils import get_column_letter, range_boundaries
 
 
 def read_sugar_df(csv_path: str) -> pd.DataFrame:
@@ -45,7 +48,7 @@ def read_sugar_df(csv_path: str) -> pd.DataFrame:
     return sugar_df
 
 
-def fit_sheet_cols(worksheet: Worksheet) -> Worksheet:
+def fit_sheet_cols(worksheet: Worksheet):
     """Autofit the given worksheet's columns to content"""
     for col in worksheet.iter_cols():
         col_letter = col[0].column_letter
@@ -54,10 +57,11 @@ def fit_sheet_cols(worksheet: Worksheet) -> Worksheet:
     return worksheet
 
 
-def convert_table(worksheet: Worksheet) -> Worksheet:
+def convert_table(worksheet: Worksheet) -> Table:
     """Convert the data in the given worksheet into a table"""
     name = worksheet.title.replace(" ", "_")
-    table = Table(displayName=name, ref=worksheet.calculate_dimension())
+    data_range = worksheet.calculate_dimension()
+    table = Table(displayName=name, ref=data_range)
     table.tableStyleInfo = TableStyleInfo(
         name="TableStyleMedium9",
         showFirstColumn=False,
@@ -66,7 +70,28 @@ def convert_table(worksheet: Worksheet) -> Worksheet:
         showColumnStripes=False,
     )
     worksheet.add_table(table)
-    return worksheet
+
+    return table
+
+
+def fill_conditional(
+    worksheet: Worksheet, address: str, condition: str, color_hex: str
+):
+    """Apply conditional color fill the cell range specified by the given address in the given worksheet"""
+    # remove hash sign in color_hex if present
+    color = color_hex.replace("#", "")
+
+    worksheet.conditional_formatting.add(
+        address,
+        FormulaRule(
+            formula=[condition],
+            fill=PatternFill(
+                start_color=color,
+                end_color=color,
+                fill_type="solid",
+            ),
+        ),
+    )
 
 
 def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
@@ -75,15 +100,15 @@ def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     wb = Workbook()
 
     # copy sugar dataframe data into excel workbook
-    bool_to_str = lambda has: "yes" if has else "no"
-    sugar_df["Hyperglycemia"] = sugar_df["Hyperglycemia"].apply(bool_to_str)
-    sugar_df["Hypoglycemia"] = sugar_df["Hypoglycemia"].apply(bool_to_str)
     sugar_ws = wb.active
     if sugar_ws is None:
         raise RuntimeError("Unexpected None from Workbook.active")
-
     date_prefix = f'{sugar_df["Date"].min().strftime("%m|%y")} - {sugar_df["Date"].max().strftime("%m|%y")}'
     sugar_ws.title = f"{date_prefix} Blood Sugar"
+
+    bool_to_str = lambda has: "yes" if has else "no"
+    sugar_df["Hyperglycemia"] = sugar_df["Hyperglycemia"].apply(bool_to_str)
+    sugar_df["Hypoglycemia"] = sugar_df["Hypoglycemia"].apply(bool_to_str)
     for row in dataframe_to_rows(sugar_df, index=False, header=True):
         sugar_ws.append(row)
     fit_sheet_cols(sugar_ws)
@@ -98,9 +123,20 @@ def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     stats_ws.delete_rows(2)
     fit_sheet_cols(stats_ws)
 
-    # add tables on worksheets
-    convert_table(sugar_ws)
+    # convert worksheets data into tables
+    sugar_tbl = convert_table(sugar_ws)
     convert_table(stats_ws)
+
+    # apply conditional formatting to highlight hyper and hypoglycemia
+    max_col = range_boundaries(sugar_tbl.ref)[2]
+    hyper_col = get_column_letter(max_col - 1)
+    hypo_col = get_column_letter(max_col)
+    fill_conditional(
+        sugar_ws,
+        address=str(sugar_tbl.ref),
+        condition=f'OR(${hyper_col}1 = "yes", ${hypo_col}1 = "yes")',
+        color_hex="FF7F7F",
+    )
 
     return wb
 
