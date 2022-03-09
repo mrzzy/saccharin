@@ -18,18 +18,6 @@ from openpyxl.formatting.rule import FormulaRule
 from openpyxl.utils import get_column_letter, range_boundaries
 
 
-def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
-    """
-    Label if the given sugar level is an outlier: outside outlier high & low constraints.
-    """
-    if sugar_level > outlier_high:
-        return "High"
-    elif sugar_level < outlier_low:
-        return "Low"
-    else:
-        return ""
-
-
 def read_sugar_df(csv_path: str) -> pd.DataFrame:
     """Read the blood sugar data from the given CSV as a DataFrame"""
     # read sugar data csv export
@@ -95,6 +83,14 @@ def convert_table(worksheet: Worksheet) -> Table:
 
     return table
 
+def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
+    """Label if the given sugar level is an outlier: outside outlier high & low constraints. """
+    if sugar_level > outlier_high:
+        return "High"
+    elif sugar_level < outlier_low:
+        return "Low"
+    else:
+        return ""
 
 def fill_conditional(
     worksheet: Worksheet, address: str, condition: str, color_hex: str
@@ -150,18 +146,25 @@ def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     convert_table(stats_ws)
 
     # conditional formatting
-    # highlight hyper and hypoglycemia
+    # calculate conditional formatting columns
     max_col = range_boundaries(sugar_tbl.ref)[2]
-    hyper_col = get_column_letter(max_col - 1)
-    hypo_col = get_column_letter(max_col)
+    hyper_col = get_column_letter(max_col - 2)
+    hypo_col = get_column_letter(max_col - 1)
+    outlier_col = get_column_letter(max_col)
+    # highlight hyper and hypoglycemia
     fill_conditional(
         sugar_ws,
         address=str(sugar_tbl.ref),
         condition=f'OR(${hyper_col}1 = "yes", ${hypo_col}1 = "yes")',
         color_hex="FF7F7F",
     )
-
     # highlight outlier blood sugar levels
+    fill_conditional(
+        sugar_ws,
+        address=str(sugar_tbl.ref),
+        condition=f'OR(${outlier_col}1 = "High", ${outlier_col}1 = "Low")',
+        color_hex="FFD580",
+    )
 
     return wb
 
@@ -210,10 +213,6 @@ if __name__ == "__main__":
             sugar, args.outlier_high, args.outlier_low,
         ) for sugar in sugar_df["Blood Sugar Measurement (mmol/L)"]
     ]
-
-    print(sugar_df["Outlier"].value_counts())
-
-    raise ValueError
 
     # compute summary statistics
     stats_df = sugar_df.describe().drop(["25%", "75%"])
