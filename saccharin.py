@@ -83,6 +83,14 @@ def convert_table(worksheet: Worksheet) -> Table:
 
     return table
 
+def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
+    """Label if the given sugar level is an outlier: outside outlier high & low constraints. """
+    if sugar_level > outlier_high:
+        return "High"
+    elif sugar_level < outlier_low:
+        return "Low"
+    else:
+        return ""
 
 def fill_conditional(
     worksheet: Worksheet, address: str, condition: str, color_hex: str
@@ -137,15 +145,25 @@ def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     sugar_tbl = convert_table(sugar_ws)
     convert_table(stats_ws)
 
-    # apply conditional formatting to highlight hyper and hypoglycemia
+    # conditional formatting
+    # calculate conditional formatting columns
     max_col = range_boundaries(sugar_tbl.ref)[2]
-    hyper_col = get_column_letter(max_col - 1)
-    hypo_col = get_column_letter(max_col)
+    hyper_col = get_column_letter(max_col - 2)
+    hypo_col = get_column_letter(max_col - 1)
+    outlier_col = get_column_letter(max_col)
+    # highlight hyper and hypoglycemia
     fill_conditional(
         sugar_ws,
         address=str(sugar_tbl.ref),
         condition=f'OR(${hyper_col}1 = "yes", ${hypo_col}1 = "yes")',
         color_hex="FF7F7F",
+    )
+    # highlight outlier blood sugar levels
+    fill_conditional(
+        sugar_ws,
+        address=str(sugar_tbl.ref),
+        condition=f'OR(${outlier_col}1 = "High", ${outlier_col}1 = "Low")',
+        color_hex="FFD580",
     )
 
     return wb
@@ -164,6 +182,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--out-xlsx", help="Path to write output Excel file", default="out.xlsx"
     )
+    parser.add_argument(
+        "--outlier-high",
+        help="Upper blood sugar level limit in mmol/L to highlight as high level outlier.",
+        default=9.5,
+        type=float,
+    )
+    parser.add_argument(
+        "--outlier-low",
+        help="Lower blood sugar level limit in mmol/L to highlight as low outlier.",
+        default=4.5,
+        type=float,
+    )
     args = parser.parse_args()
 
     # read blood sugar data
@@ -176,6 +206,13 @@ if __name__ == "__main__":
     # add hypo / hyperglycemia features
     sugar_df["Hyperglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] > 10.0
     sugar_df["Hypoglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] < 4.0
+
+    # add outlier features
+    sugar_df["Outlier"] = [
+        label_outlier(
+            sugar, args.outlier_high, args.outlier_low,
+        ) for sugar in sugar_df["Blood Sugar Measurement (mmol/L)"]
+    ]
 
     # compute summary statistics
     stats_df = sugar_df.describe().drop(["25%", "75%"])
