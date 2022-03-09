@@ -137,7 +137,8 @@ def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     sugar_tbl = convert_table(sugar_ws)
     convert_table(stats_ws)
 
-    # apply conditional formatting to highlight hyper and hypoglycemia
+    # conditional formatting
+    # highlight hyper and hypoglycemia
     max_col = range_boundaries(sugar_tbl.ref)[2]
     hyper_col = get_column_letter(max_col - 1)
     hypo_col = get_column_letter(max_col)
@@ -147,6 +148,8 @@ def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
         condition=f'OR(${hyper_col}1 = "yes", ${hypo_col}1 = "yes")',
         color_hex="FF7F7F",
     )
+
+    # highlight outlier blood sugar levels
 
     return wb
 
@@ -163,6 +166,18 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--out-xlsx", help="Path to write output Excel file", default="out.xlsx"
+    )
+    parser.add_argument(
+        "--outlier-high",
+        help="Upper blood sugar level limit in mmol/L to highlight as high level outlier.",
+        default=9.6,
+        type=float,
+    )
+    parser.add_argument(
+        "--outlier-low",
+        help="Lower blood sugar level limit in mmol/L to highlight as low outlier.",
+        default=9.5,
+        type=float,
     )
     args = parser.parse_args()
 
