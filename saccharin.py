@@ -18,6 +18,18 @@ from openpyxl.formatting.rule import FormulaRule
 from openpyxl.utils import get_column_letter, range_boundaries
 
 
+def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
+    """
+    Label if the given sugar level is an outlier: outside outlier high & low constraints.
+    """
+    if sugar_level > outlier_high:
+        return "High"
+    elif sugar_level < outlier_low:
+        return "Low"
+    else:
+        return ""
+
+
 def read_sugar_df(csv_path: str) -> pd.DataFrame:
     """Read the blood sugar data from the given CSV as a DataFrame"""
     # read sugar data csv export
@@ -170,13 +182,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--outlier-high",
         help="Upper blood sugar level limit in mmol/L to highlight as high level outlier.",
-        default=9.6,
+        default=9.5,
         type=float,
     )
     parser.add_argument(
         "--outlier-low",
         help="Lower blood sugar level limit in mmol/L to highlight as low outlier.",
-        default=9.5,
+        default=4.5,
         type=float,
     )
     args = parser.parse_args()
@@ -191,6 +203,17 @@ if __name__ == "__main__":
     # add hypo / hyperglycemia features
     sugar_df["Hyperglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] > 10.0
     sugar_df["Hypoglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] < 4.0
+
+    # add outlier features
+    sugar_df["Outlier"] = [
+        label_outlier(
+            sugar, args.outlier_high, args.outlier_low,
+        ) for sugar in sugar_df["Blood Sugar Measurement (mmol/L)"]
+    ]
+
+    print(sugar_df["Outlier"].value_counts())
+
+    raise ValueError
 
     # compute summary statistics
     stats_df = sugar_df.describe().drop(["25%", "75%"])
