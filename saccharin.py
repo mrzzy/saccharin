@@ -63,7 +63,7 @@ def fit_sheet_cols(worksheet: Worksheet):
     for col in worksheet.iter_cols():
         col_letter = col[0].column_letter
         col_width = max([len(str(cell.value)) for cell in col])
-        worksheet.column_dimensions[col_letter].width = col_width * 1.05
+        worksheet.column_dimensions[col_letter].width = col_width * 1.05 # type: ignore
     return worksheet
 
 
@@ -99,7 +99,7 @@ def fill_conditional(
     # remove hash sign in color_hex if present
     color = color_hex.replace("#", "")
 
-    worksheet.conditional_formatting.add(
+    worksheet.conditional_formatting.add( # type: ignore
         address,
         FormulaRule(
             formula=[condition],
