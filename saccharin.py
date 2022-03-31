@@ -3,7 +3,7 @@
 # blood sugar data cleaning & export
 #
 
-from typing import cast, FrozenSet
+from typing import cast, List
 import numpy as np
 from openpyxl.styles.fills import PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -28,6 +28,13 @@ def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
     df = df.replace("", np.nan).dropna(axis=1, how="all")  # type: ignore
 
     return df
+
+def sort_tags(tags: pd.Series) -> pd.Series:
+    """Sort the comma seperated tags in the given series"""
+    return tags.str.split(",").map(
+        # list type check needed as sorted cannot sort discrete float values
+        lambda tags: tags if not isinstance(tags, List) else sorted(tags)
+    ).str.join(",")
 
 def read_sugar_df(csv_path: str) -> pd.DataFrame:
     """Read the blood sugar data from the given CSV as a DataFrame"""
@@ -55,14 +62,10 @@ def read_sugar_df(csv_path: str) -> pd.DataFrame:
     # parse date & time columns
     sugar_df["Date"] = pd.to_datetime(sugar_df["Date"]).apply((lambda dt: dt.date()))  # type: ignore
     sugar_df["Time"] = pd.to_datetime(sugar_df["Time"]).apply((lambda dt: dt.time()))  # type: ignore
+    # ensure identical sets of tags are represented by the same string
+    sugar_df["Tags"] = sort_tags(sugar_df["Tags"])
     return drop_empty(sugar_df)
 
-def extract_tags(tags: pd.Series) -> FrozenSet[str]:
-    """Extract a set of unique tags present in the comma delimited given tags series."""
-    # form comma delimted tags corpus
-    tags_str = tags.str.cat(sep=",") # type: str
-    # extract only unique tags via set
-    return frozenset(tags_str.split(","))
 
 def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
     """Label if the given sugar level is an outlier: outside outlier high & low constraints."""
@@ -230,6 +233,19 @@ if __name__ == "__main__":
         glycemia = f"{prefix}glycemia"
         count = sugar_df[sugar_df[glycemia]][glycemia].agg("count")
         stats_df.loc["count", glycemia] = count
+    
+    # compute average blood sugar level by meal
+    meal_tags = [ "Breakfast", "Lunch", "Dinner", "Snack"]
+
+    meal_sugar_df = sugar_df[sugar_df["Tags"].str.contains("|".join(meal_tags))]
+    meal_stats_df = meal_sugar_df[["Blood Sugar Measurement (mmol/L)", "Tags"]].groupby(
+        by="Tags"
+    ).agg("mean").rename(
+        # add suffix to clarify that its blood sugar
+        index=lambda s: f"{s} (mmol/L)",
+        columns={"Blood Sugar Measurement (mmol/L)": "mean"}
+    )
+    stats_df = stats_df.join(meal_stats_df.T)
 
     # template and save as excel file
     workbook = template_excel(sugar_df, stats_df)
