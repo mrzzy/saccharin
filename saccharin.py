@@ -3,7 +3,7 @@
 # blood sugar data cleaning & export
 #
 
-from typing import cast
+from typing import cast, FrozenSet
 import numpy as np
 from openpyxl.styles.fills import PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -46,6 +46,13 @@ def read_sugar_df(csv_path: str) -> pd.DataFrame:
     sugar_df["Time"] = pd.to_datetime(sugar_df["Time"]).apply((lambda dt: dt.time()))  # type: ignore
     return sugar_df  # type: ignore
 
+def extract_tags(tags: pd.Series) -> FrozenSet[str]:
+    """Extract a set of unique tags present in the comma delimited given tags series."""
+    # form comma delimted tags corpus
+    tags_str = tags.str.cat(sep=",") # type: str
+    # extract only unique tags via set
+    return frozenset(tags_str.split(","))
+
 
 def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
     """Drop fully empty columns from the given DataFrame"""
@@ -56,7 +63,6 @@ def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
     df = df.replace("", np.nan).dropna(axis=1, how="all")  # type: ignore
 
     return df
-
 
 def fit_sheet_cols(worksheet: Worksheet):
     """Autofit the given worksheet's columns to content"""
@@ -84,7 +90,7 @@ def convert_table(worksheet: Worksheet) -> Table:
     return table
 
 def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
-    """Label if the given sugar level is an outlier: outside outlier high & low constraints. """
+    """Label if the given sugar level is an outlier: outside outlier high & low constraints."""
     if sugar_level > outlier_high:
         return "High"
     elif sugar_level < outlier_low:
@@ -110,7 +116,6 @@ def fill_conditional(
             ),
         ),
     )
-
 
 def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     """Template the given dataframes into an Excel Workbook"""
@@ -198,7 +203,7 @@ if __name__ == "__main__":
 
     # read blood sugar data
     sugar_df = drop_empty(read_sugar_df(args.csv_path))
-
+    
     # filter data to only include entries from start date onwards
     if args.start_from is not None:
         sugar_df = sugar_df[sugar_df["Date"] >= args.start_from]
