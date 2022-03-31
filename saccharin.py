@@ -29,12 +29,20 @@ def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+
 def sort_tags(tags: pd.Series) -> pd.Series:
     """Sort the comma seperated tags in the given series"""
-    return tags.str.split(",").map(
-        # list type check needed as sorted cannot sort discrete float values
-        lambda tags: tags if not isinstance(tags, List) else sorted(tags)
-    ).str.join(",")
+    return (
+        tags.str.split(",")
+        .map(
+            # list type check needed as sorted cannot sort discrete float values
+            lambda tags: tags
+            if not isinstance(tags, List)
+            else sorted(tags)
+        )
+        .str.join(",")
+    )
+
 
 def read_sugar_df(csv_path: str) -> pd.DataFrame:
     """Read the blood sugar data from the given CSV as a DataFrame"""
@@ -76,14 +84,16 @@ def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -
     else:
         return ""
 
+
 ## Excel Utilities
 def fit_sheet_cols(worksheet: Worksheet):
     """Autofit the given worksheet's columns to content"""
     for col in worksheet.iter_cols():
         col_letter = col[0].column_letter
         col_width = max([len(str(cell.value)) for cell in col])
-        worksheet.column_dimensions[col_letter].width = col_width * 1.05 # type: ignore
+        worksheet.column_dimensions[col_letter].width = col_width * 1.05  # type: ignore
     return worksheet
+
 
 def convert_table(worksheet: Worksheet) -> Table:
     """Convert the data in the given worksheet into a table"""
@@ -101,6 +111,7 @@ def convert_table(worksheet: Worksheet) -> Table:
 
     return table
 
+
 def fill_conditional(
     worksheet: Worksheet, address: str, condition: str, color_hex: str
 ):
@@ -108,7 +119,7 @@ def fill_conditional(
     # remove hash sign in color_hex if present
     color = color_hex.replace("#", "")
 
-    worksheet.conditional_formatting.add( # type: ignore
+    worksheet.conditional_formatting.add(  # type: ignore
         address,
         FormulaRule(
             formula=[condition],
@@ -119,6 +130,7 @@ def fill_conditional(
             ),
         ),
     )
+
 
 def template_excel(sugar_df: pd.DataFrame, stats_df: pd.DataFrame) -> Workbook:
     """Template the given dataframes into an Excel Workbook"""
@@ -206,7 +218,7 @@ if __name__ == "__main__":
 
     # read blood sugar data
     sugar_df = read_sugar_df(args.csv_path)
-    
+
     # filter data to only include entries from start date onwards
     if args.start_from is not None:
         sugar_df = sugar_df[sugar_df["Date"] >= args.start_from]
@@ -218,8 +230,11 @@ if __name__ == "__main__":
     # add outlier features
     sugar_df["Outlier"] = [
         label_outlier(
-            sugar, args.outlier_high, args.outlier_low,
-        ) for sugar in sugar_df["Blood Sugar Measurement (mmol/L)"]
+            sugar,
+            args.outlier_high,
+            args.outlier_low,
+        )
+        for sugar in sugar_df["Blood Sugar Measurement (mmol/L)"]
     ]
 
     # compute summary statistics
@@ -233,17 +248,20 @@ if __name__ == "__main__":
         glycemia = f"{prefix}glycemia"
         count = sugar_df[sugar_df[glycemia]][glycemia].agg("count")
         stats_df.loc["count", glycemia] = count
-    
+
     # compute average blood sugar level by meal
-    meal_tags = [ "Breakfast", "Lunch", "Dinner", "Snack"]
+    meal_tags = ["Breakfast", "Lunch", "Dinner", "Snack"]
 
     meal_sugar_df = sugar_df[sugar_df["Tags"].str.contains("|".join(meal_tags))]
-    meal_stats_df = meal_sugar_df[["Blood Sugar Measurement (mmol/L)", "Tags"]].groupby(
-        by="Tags"
-    ).agg("mean").rename(
-        # add suffix to clarify that its blood sugar
-        index=lambda s: f"{s} (mmol/L)",
-        columns={"Blood Sugar Measurement (mmol/L)": "mean"}
+    meal_stats_df = (
+        meal_sugar_df[["Blood Sugar Measurement (mmol/L)", "Tags"]]
+        .groupby(by="Tags")
+        .agg("mean")
+        .rename(
+            # add suffix to clarify that its blood sugar
+            index=lambda s: f"{s} (mmol/L)",
+            columns={"Blood Sugar Measurement (mmol/L)": "mean"},
+        )
     )
     stats_df = stats_df.join(meal_stats_df.T)
 
