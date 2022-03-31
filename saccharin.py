@@ -18,6 +18,17 @@ from openpyxl.formatting.rule import FormulaRule
 from openpyxl.utils import get_column_letter, range_boundaries
 
 
+## Feature Extraction & Engineering
+def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop fully empty columns from the given DataFrame"""
+    # trim empty whitespace in string columns
+    df = df.applymap((lambda s: s.strip() if isinstance(s, str) else s))
+
+    # remove empty & nan coluns
+    df = df.replace("", np.nan).dropna(axis=1, how="all")  # type: ignore
+
+    return df
+
 def read_sugar_df(csv_path: str) -> pd.DataFrame:
     """Read the blood sugar data from the given CSV as a DataFrame"""
     # read sugar data csv export
@@ -44,7 +55,7 @@ def read_sugar_df(csv_path: str) -> pd.DataFrame:
     # parse date & time columns
     sugar_df["Date"] = pd.to_datetime(sugar_df["Date"]).apply((lambda dt: dt.date()))  # type: ignore
     sugar_df["Time"] = pd.to_datetime(sugar_df["Time"]).apply((lambda dt: dt.time()))  # type: ignore
-    return sugar_df  # type: ignore
+    return drop_empty(sugar_df)
 
 def extract_tags(tags: pd.Series) -> FrozenSet[str]:
     """Extract a set of unique tags present in the comma delimited given tags series."""
@@ -53,17 +64,16 @@ def extract_tags(tags: pd.Series) -> FrozenSet[str]:
     # extract only unique tags via set
     return frozenset(tags_str.split(","))
 
+def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
+    """Label if the given sugar level is an outlier: outside outlier high & low constraints."""
+    if sugar_level > outlier_high:
+        return "High"
+    elif sugar_level < outlier_low:
+        return "Low"
+    else:
+        return ""
 
-def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop fully empty columns from the given DataFrame"""
-    # trim empty whitespace in string columns
-    df = df.applymap((lambda s: s.strip() if isinstance(s, str) else s))
-
-    # remove empty & nan coluns
-    df = df.replace("", np.nan).dropna(axis=1, how="all")  # type: ignore
-
-    return df
-
+## Excel Utilities
 def fit_sheet_cols(worksheet: Worksheet):
     """Autofit the given worksheet's columns to content"""
     for col in worksheet.iter_cols():
@@ -71,7 +81,6 @@ def fit_sheet_cols(worksheet: Worksheet):
         col_width = max([len(str(cell.value)) for cell in col])
         worksheet.column_dimensions[col_letter].width = col_width * 1.05 # type: ignore
     return worksheet
-
 
 def convert_table(worksheet: Worksheet) -> Table:
     """Convert the data in the given worksheet into a table"""
@@ -88,15 +97,6 @@ def convert_table(worksheet: Worksheet) -> Table:
     worksheet.add_table(table)
 
     return table
-
-def label_outlier(sugar_level: float, outlier_high: float, outlier_low: float) -> str:
-    """Label if the given sugar level is an outlier: outside outlier high & low constraints."""
-    if sugar_level > outlier_high:
-        return "High"
-    elif sugar_level < outlier_low:
-        return "Low"
-    else:
-        return ""
 
 def fill_conditional(
     worksheet: Worksheet, address: str, condition: str, color_hex: str
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # read blood sugar data
-    sugar_df = drop_empty(read_sugar_df(args.csv_path))
+    sugar_df = read_sugar_df(args.csv_path)
     
     # filter data to only include entries from start date onwards
     if args.start_from is not None:
