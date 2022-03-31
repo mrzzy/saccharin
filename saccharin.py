@@ -19,6 +19,11 @@ from openpyxl.utils import get_column_letter, range_boundaries
 
 
 ## Feature Extraction & Engineering
+def to_float(series: pd.Series, default: float) -> pd.Series:
+    """Convert the given series to float, using the given default if conversion fails."""
+    return pd.to_numeric(series, "coerce").fillna(default).astype(float)  # type: ignore
+
+
 def drop_empty(df: pd.DataFrame) -> pd.DataFrame:
     """Drop fully empty columns from the given DataFrame"""
     # trim empty whitespace in string columns
@@ -227,6 +232,16 @@ if __name__ == "__main__":
     sugar_df["Hyperglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] > 10.0
     sugar_df["Hypoglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] < 4.0
 
+    # add insulin carb ratio (ICR) features
+    sugar_df["Total Insulin (Meal)"] = to_float(
+        sugar_df["Insulin (Meal)"], default=0.0
+    ) + to_float(sugar_df["Insulin (Correction)"], default=0.0)
+
+    sugar_df["Insulin Carb Ratio (ICR)"] = (
+        sugar_df["Meal Carbohydrates (Grams, Factor 1)"]
+        / sugar_df["Total Insulin (Meal)"]
+    )
+
     # add outlier features
     sugar_df["Outlier"] = [
         label_outlier(
@@ -252,7 +267,10 @@ if __name__ == "__main__":
     # compute average blood sugar level by meal
     meal_tags = ["Breakfast", "Lunch", "Dinner", "Snack"]
 
-    meal_sugar_df = sugar_df[sugar_df["Tags"].str.contains("|".join(meal_tags))]
+    # filter blood sugar measurements with no tags (na = False)
+    meal_sugar_df = sugar_df[
+        sugar_df["Tags"].str.contains("|".join(meal_tags), na=False)
+    ]
     meal_stats_df = (
         meal_sugar_df[["Blood Sugar Measurement (mmol/L)", "Tags"]]
         .groupby(by="Tags")
