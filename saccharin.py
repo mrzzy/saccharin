@@ -227,6 +227,8 @@ if __name__ == "__main__":
     # filter data to only include entries from start date onwards
     if args.start_from is not None:
         sugar_df = sugar_df[sugar_df["Date"] >= args.start_from]
+    if len(sugar_df) <= 0:
+        raise ValueError("No blood sugar data entries match filter.")
 
     # add hypo / hyperglycemia features
     sugar_df["Hyperglycemia"] = sugar_df["Blood Sugar Measurement (mmol/L)"] > 10.0
